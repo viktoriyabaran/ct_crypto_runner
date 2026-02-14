@@ -1,0 +1,13 @@
+[Unit]
+Description=Viktoriya's Baran Heartbeat Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/vb_service/app.py
+WorkingDirectory=/opt/vb_service
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
