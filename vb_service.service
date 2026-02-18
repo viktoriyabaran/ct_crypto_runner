@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /opt/vb_service/app.py
+ExecStart=/opt/vb_service/venv/bin/python3 /opt/vb_service/app.py
 WorkingDirectory=/opt/vb_service
 Restart=always
 RestartSec=3
