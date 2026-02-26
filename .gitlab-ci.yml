@@ -10,7 +10,7 @@ test:
   before_script:
     - pip install -r requirements.txt
   script:
-    - python3 -m pytest tests/
+    - PYTHONPATH=. python3 -m pytest tests/
 
 deploy:
   stage: deploy
