@@ -702,14 +702,16 @@
         // ── Apply filter and re-render everything ──
         function applyAndRender() {
             showOverlay('Applying filters...');
-            // Defer rendering to next frame so the overlay paints first
+            // Double rAF ensures the browser paints the overlay before heavy work
             requestAnimationFrame(() => {
-                const filtered = filterRows(allRows);
-                updateFilterInfo(filtered.length, allRows.length);
-                renderMetrics(filtered);
-                renderChart(filtered);
-                renderPrices(filtered);
-                hideOverlay();
+                requestAnimationFrame(() => {
+                    const filtered = filterRows(allRows);
+                    updateFilterInfo(filtered.length, allRows.length);
+                    renderMetrics(filtered);
+                    renderChart(filtered);
+                    renderPrices(filtered);
+                    hideOverlay();
+                });
             });
         }
 
