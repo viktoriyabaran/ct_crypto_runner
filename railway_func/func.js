@@ -30,6 +30,19 @@ async function readCSV(): Promise<
   return parse(content, { columns: true, skip_empty_lines: true });
 }
 
+function filterByTimeRange(
+  rows: Array<{ timestamp: string; coin: string; currency: string; price: string }>,
+  from?: string,
+  to?: string
+) {
+  return rows.filter((r) => {
+    const t = new Date(r.timestamp).getTime();
+    if (from && t < new Date(from).getTime()) return false;
+    if (to && t > new Date(to).getTime()) return false;
+    return true;
+  });
+}
+
 // Health check
 app.get("/", (c) => c.json({ status: "ok", service: "vb-analytics" }));
 
@@ -37,8 +50,11 @@ app.get("/", (c) => c.json({ status: "ok", service: "vb-analytics" }));
 app.get("/api/prices", async (c) => {
   try {
     const rows = await readCSV();
+    const from = c.req.query("from");
+    const to = c.req.query("to");
     const limit = parseInt(c.req.query("limit") ?? "100");
-    return c.json({ data: rows.slice(-limit) });
+    const filtered = filterByTimeRange(rows, from, to);
+    return c.json({ data: filtered.slice(-limit) });
   } catch (e) {
     return c.json({ error: String(e) }, 500);
   }
@@ -48,7 +64,10 @@ app.get("/api/prices", async (c) => {
 app.get("/api/candlestick", async (c) => {
   try {
     const rows = await readCSV();
+    const from = c.req.query("from");
+    const to = c.req.query("to");
     const interval = c.req.query("interval") ?? "1h";
+    const filtered = filterByTimeRange(rows, from, to);
 
     const intervalMs: Record<string, number> = {
       "1h": 3600000,
@@ -58,7 +77,7 @@ app.get("/api/candlestick", async (c) => {
     const ms = intervalMs[interval] ?? 3600000;
 
     const candles: Record<string, number[]> = {};
-    for (const row of rows) {
+    for (const row of filtered) {
       const time = new Date(row.timestamp).getTime();
       const bucket = Math.floor(time / ms) * ms;
       const key = new Date(bucket).toISOString();
@@ -88,7 +107,10 @@ app.get("/api/candlestick", async (c) => {
 app.get("/api/metrics", async (c) => {
   try {
     const rows = await readCSV();
-    const prices = rows.map((r) => parseFloat(r.price));
+    const from = c.req.query("from");
+    const to = c.req.query("to");
+    const filtered = filterByTimeRange(rows, from, to);
+    const prices = filtered.map((r) => parseFloat(r.price));
 
     if (prices.length === 0) return c.json({ error: "No data" }, 404);
 
@@ -111,8 +133,8 @@ app.get("/api/metrics", async (c) => {
       median,
       stddev: parseFloat(stddev.toFixed(6)),
       change_percent: parseFloat(changePercent.toFixed(2)),
-      first_timestamp: rows[0].timestamp,
-      last_timestamp: rows[rows.length - 1].timestamp,
+      first_timestamp: filtered[0].timestamp,
+      last_timestamp: filtered[filtered.length - 1].timestamp,
     });
   } catch (e) {
     return c.json({ error: String(e) }, 500);

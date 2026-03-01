@@ -483,9 +483,6 @@
         const API = "{{ api_url }}";
         let chart = null, candleSeries = null;
 
-        // Raw data cache (fetched once, filtered client-side)
-        let allRows = [];
-
         // ── Overlay ──
         const overlay = document.getElementById('overlay');
         function showOverlay(text = 'Loading data...') {
@@ -504,144 +501,95 @@
         updateClock();
         setInterval(updateClock, 60000);
 
-        function getDateFilter() {
+        function getDateParams() {
             const from = document.getElementById('filter-from').value;
             const to = document.getElementById('filter-to').value;
-            return {
-                from: from ? new Date(from) : null,
-                to: to ? new Date(to) : null,
-            };
+            const params = new URLSearchParams();
+            if (from) params.set('from', new Date(from).toISOString());
+            if (to) params.set('to', new Date(to).toISOString());
+            return params;
         }
 
-        function filterRows(rows) {
-            const { from, to } = getDateFilter();
-            if (!from && !to) return rows;
-            return rows.filter(r => {
-                const t = new Date(r.timestamp);
-                if (from && t < from) return false;
-                if (to && t > to) return false;
-                return true;
-            });
+        function showError(message) {
+            document.getElementById('metrics-content').innerHTML = `<div class="error">Error: ${message}</div>`;
+            document.getElementById('prices-content').innerHTML = `<div class="error">Error: ${message}</div>`;
+            document.getElementById('chart-status').innerHTML = `<span style="color:#c62828">${message}</span>`;
         }
 
-        function updateFilterInfo(count, total) {
-            const { from, to } = getDateFilter();
-            const el = document.getElementById('filter-info');
-            if (!from && !to) {
-                el.textContent = `Showing all ${total} records`;
-            } else {
-                el.textContent = `${count} of ${total} records in range`;
-            }
-        }
-
-        // ── Fetch all raw prices once ──
-        async function fetchAllData() {
-            const res = await fetch(`${API}/api/prices?limit=100000`);
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            allRows = data.data;
-
-            // Set date picker bounds from data
-            if (allRows.length > 0) {
-                const first = allRows[0].timestamp;
-                const last = allRows[allRows.length - 1].timestamp;
-                document.getElementById('filter-from').value = first.slice(0, 16);
-                document.getElementById('filter-to').value = last.slice(0, 16);
-            }
-        }
-
-        // ── Render metrics from filtered rows ──
-        function renderMetrics(rows) {
+        // ── Fetch & render metrics ──
+        async function fetchMetrics() {
             const el = document.getElementById('metrics-content');
-            if (rows.length === 0) {
-                el.innerHTML = '<div class="loading">No data in selected range</div>';
-                return;
-            }
-            const prices = rows.map(r => Number.parseFloat(r.price));
-            const mean = prices.reduce((a, b) => a + b, 0) / prices.length;
-            const sorted = [...prices].sort((a, b) => a - b);
-            const median = sorted[Math.floor(sorted.length / 2)];
-            const variance = prices.reduce((sum, p) => sum + (p - mean) ** 2, 0) / prices.length;
-            const stddev = Math.sqrt(variance);
-            const latest = prices[prices.length - 1];
-            const oldest = prices[0];
-            const changePct = ((latest - oldest) / oldest) * 100;
-            const changeColor = changePct >= 0 ? '#2e7d32' : '#c62828';
+            const params = getDateParams();
+            const res = await fetch(`${API}/api/metrics?${params}`);
+            const data = await res.json();
+            if (data.error) { el.innerHTML = `<div class="error">${data.error}</div>`; return; }
+
+            const d = data;
+            const changeColor = d.change_percent >= 0 ? '#2e7d32' : '#c62828';
+            const changeSign = d.change_percent >= 0 ? '+' : '';
 
             el.innerHTML = `
                 <div class="metrics-grid">
                     <div class="metric-card">
                         <div class="metric-label">Latest Price</div>
-                        <div class="metric-value accent">$${latest.toFixed(6)}</div>
+                        <div class="metric-value accent">$${d.latest.toFixed(6)}</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">Min</div>
-                        <div class="metric-value">$${sorted[0].toFixed(6)}</div>
+                        <div class="metric-value">$${d.min.toFixed(6)}</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">Max</div>
-                        <div class="metric-value">$${sorted[sorted.length - 1].toFixed(6)}</div>
+                        <div class="metric-value">$${d.max.toFixed(6)}</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">Mean</div>
-                        <div class="metric-value">$${mean.toFixed(6)}</div>
+                        <div class="metric-value">$${d.mean.toFixed(6)}</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">Std Dev</div>
-                        <div class="metric-value">${stddev.toFixed(6)}</div>
+                        <div class="metric-value">${d.stddev.toFixed(6)}</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">Change</div>
-                        <div class="metric-value" style="color:${changeColor}">${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%</div>
+                        <div class="metric-value" style="color:${changeColor}">${changeSign}${d.change_percent.toFixed(2)}%</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">Data Points</div>
-                        <div class="metric-value">${prices.length}</div>
+                        <div class="metric-value">${d.count}</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">Median</div>
-                        <div class="metric-value">$${median.toFixed(6)}</div>
+                        <div class="metric-value">$${d.median.toFixed(6)}</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">Period</div>
-                        <div class="metric-value small">${new Date(rows[0].timestamp).toLocaleDateString()} &ndash; ${new Date(rows[rows.length - 1].timestamp).toLocaleDateString()}</div>
+                        <div class="metric-value small">${new Date(d.first_timestamp).toLocaleDateString()} &ndash; ${new Date(d.last_timestamp).toLocaleDateString()}</div>
                     </div>
                 </div>
             `;
+
+            document.getElementById('filter-info').textContent = `${d.count} records in range`;
         }
 
-        // ── Render chart from filtered rows ──
-        function renderChart(rows) {
-            const interval = document.getElementById('chart-interval').value;
+        // ── Fetch & render candlestick chart ──
+        async function fetchChart() {
             const statusEl = document.getElementById('chart-status');
+            const interval = document.getElementById('chart-interval').value;
+            const params = getDateParams();
+            params.set('interval', interval);
 
-            if (rows.length === 0) {
-                statusEl.textContent = 'No data in range';
-                if (candleSeries) candleSeries.setData([]);
-                return;
-            }
+            const res = await fetch(`${API}/api/candlestick?${params}`);
+            const data = await res.json();
+            if (data.error) { statusEl.innerHTML = `<span style="color:#c62828">${data.error}</span>`; return; }
 
-            const intervalMs = { '1h': 3600000, '4h': 14400000, '1d': 86400000 };
-            const ms = intervalMs[interval] ?? 3600000;
-
-            // Build candles
-            const candles = {};
-            for (const row of rows) {
-                const time = new Date(row.timestamp).getTime();
-                const bucket = Math.floor(time / ms) * ms;
-                const key = new Date(bucket).toISOString();
-                if (!candles[key]) candles[key] = [];
-                candles[key].push(Number.parseFloat(row.price));
-            }
-            const ohlc = Object.entries(candles)
-                .sort(([a], [b]) => a.localeCompare(b))
-                .map(([time, prices]) => ({
-                    time: Math.floor(new Date(time).getTime() / 1000),
-                    open: prices[0],
-                    high: Math.max(...prices),
-                    low: Math.min(...prices),
-                    close: prices[prices.length - 1],
-                }));
+            const ohlc = data.data.map(c => ({
+                time: Math.floor(new Date(c.time).getTime() / 1000),
+                open: c.open,
+                high: c.high,
+                low: c.low,
+                close: c.close,
+            }));
 
             if (!chart) {
                 document.getElementById('chart-container').innerHTML = '';
@@ -672,18 +620,24 @@
             statusEl.textContent = `${ohlc.length} candles \u00b7 ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
         }
 
-        // ── Render prices table from filtered rows ──
-        function renderPrices(rows) {
-            const limit = Number.parseInt(document.getElementById('price-limit').value, 10) || 20;
+        // ── Fetch & render prices table ──
+        async function fetchPrices() {
             const el = document.getElementById('prices-content');
-            const sliced = rows.slice(-limit);
+            const limit = Number.parseInt(document.getElementById('price-limit').value, 10) || 20;
+            const params = getDateParams();
+            params.set('limit', limit);
 
-            if (sliced.length === 0) {
+            const res = await fetch(`${API}/api/prices?${params}`);
+            const data = await res.json();
+            if (data.error) { el.innerHTML = `<div class="error">${data.error}</div>`; return; }
+
+            const rows = data.data;
+            if (rows.length === 0) {
                 el.innerHTML = '<div class="loading">No data in selected range</div>';
                 return;
             }
 
-            const tableRows = sliced.map(r => `
+            const tableRows = rows.map(r => `
                 <tr>
                     <td>${new Date(r.timestamp).toLocaleString()}</td>
                     <td><span class="coin-cell"><span class="coin-dot"></span>${r.coin}</span></td>
@@ -699,50 +653,35 @@
             `;
         }
 
-        // ── Apply filter and re-render everything ──
-        function applyAndRender() {
-            showOverlay('Applying filters...');
-            // Double rAF ensures the browser paints the overlay before heavy work
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    const filtered = filterRows(allRows);
-                    updateFilterInfo(filtered.length, allRows.length);
-                    renderMetrics(filtered);
-                    renderChart(filtered);
-                    renderPrices(filtered);
-                    hideOverlay();
-                });
-            });
+        // ── Fetch all sections ──
+        async function fetchAll(overlayText = 'Loading data...') {
+            showOverlay(overlayText);
+            try {
+                await Promise.all([fetchMetrics(), fetchChart(), fetchPrices()]);
+            } catch (e) {
+                showError(e.message);
+            } finally {
+                hideOverlay();
+            }
         }
 
         // ── Init ──
-        document.addEventListener('DOMContentLoaded', async () => {
-            showOverlay('Fetching data...');
-            try {
-                await fetchAllData();
-                applyAndRender();
-            } catch (e) {
-                hideOverlay();
-                document.getElementById('metrics-content').innerHTML = `<div class="error">Error: ${e.message}</div>`;
-                document.getElementById('prices-content').innerHTML = `<div class="error">Error: ${e.message}</div>`;
-                document.getElementById('chart-status').innerHTML = `<span style="color:#c62828">${e.message}</span>`;
-            }
-        });
+        document.addEventListener('DOMContentLoaded', () => fetchAll('Fetching data...'));
 
         // ── Event listeners ──
-        document.getElementById('filter-apply').addEventListener('click', applyAndRender);
+        document.getElementById('filter-apply').addEventListener('click', () => fetchAll('Applying filters...'));
         document.getElementById('filter-reset').addEventListener('click', () => {
             document.getElementById('filter-from').value = '';
             document.getElementById('filter-to').value = '';
-            applyAndRender();
+            fetchAll('Resetting filters...');
         });
-        document.getElementById('chart-interval').addEventListener('change', () => {
-            const filtered = filterRows(allRows);
-            renderChart(filtered);
+        document.getElementById('chart-interval').addEventListener('change', async () => {
+            showOverlay('Updating chart...');
+            try { await fetchChart(); } catch (e) { showError(e.message); } finally { hideOverlay(); }
         });
-        document.getElementById('price-limit').addEventListener('change', () => {
-            const filtered = filterRows(allRows);
-            renderPrices(filtered);
+        document.getElementById('price-limit').addEventListener('change', async () => {
+            showOverlay('Updating prices...');
+            try { await fetchPrices(); } catch (e) { showError(e.message); } finally { hideOverlay(); }
         });
     </script>
 </body>

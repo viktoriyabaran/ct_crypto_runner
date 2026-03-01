@@ -16,9 +16,11 @@ Response
 
 Returns raw price history rows (most recent last).
 
-| Param   | Type   | Default | Description                  |
-|---------|--------|---------|------------------------------|
-| `limit` | number | `100`   | Number of most-recent rows   |
+| Param   | Type   | Default | Description                          |
+|---------|--------|---------|--------------------------------------|
+| `limit` | number | `100`   | Number of most-recent rows           |
+| `from`  | string | —       | ISO 8601 start of time range filter  |
+| `to`    | string | —       | ISO 8601 end of time range filter    |
 
 **Response**
 
@@ -36,9 +38,11 @@ Returns raw price history rows (most recent last).
 
 Returns OHLC candlestick data grouped by time interval.
 
-| Param      | Type   | Default | Description                        |
-|------------|--------|---------|------------------------------------|
-| interval | string | 1h    | Bucket size: 1h, 4h, or 1d  |
+| Param      | Type   | Default | Description                          |
+|------------|--------|---------|--------------------------------------|
+| `interval` | string | `1h`   | Bucket size: `1h`, `4h`, or `1d`     |
+| `from`     | string | —      | ISO 8601 start of time range filter  |
+| `to`       | string | —      | ISO 8601 end of time range filter    |
 
 **Response**
 
@@ -57,7 +61,12 @@ volume is the number of price points in that candle.
 
 ### GET /api/metrics
 
-Returns statistical metrics computed over all stored price data.
+Returns statistical metrics computed over price data in the given time range.
+
+| Param  | Type   | Default | Description                          |
+|--------|--------|---------|--------------------------------------|
+| `from` | string | —       | ISO 8601 start of time range filter  |
+| `to`   | string | —       | ISO 8601 end of time range filter    |
 
 **Response**
 
