@@ -268,6 +268,75 @@
             background: #66bb6a;
         }
 
+        /* ── Filter bar ── */
+        .filter-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            padding: 14px 20px;
+            background: #fff;
+            border: 1px solid #ebebeb;
+            border-radius: 12px;
+        }
+        .filter-bar .control-label {
+            font-size: 12px;
+            color: #6b6b7a;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .filter-date {
+            padding: 6px 10px;
+            background: #f7f8fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            color: #1a1a2e;
+            font-size: 12px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        .filter-date:focus {
+            outline: none;
+            border-color: #66bb6a;
+            box-shadow: 0 0 0 3px rgba(102, 187, 106, 0.12);
+        }
+        .filter-separator {
+            color: #c0c0c0;
+            font-size: 12px;
+        }
+        .btn {
+            padding: 6px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+        .btn-primary {
+            background: #43a047;
+            color: #fff;
+        }
+        .btn-primary:hover {
+            background: #388e3c;
+            box-shadow: 0 2px 8px rgba(67, 160, 71, 0.25);
+        }
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #1a1a2e;
+        }
+        .btn-secondary:hover {
+            background: #e4e4e4;
+        }
+        .filter-info {
+            margin-left: auto;
+            font-size: 11px;
+            color: #6b6b7a;
+        }
+
         /* ── States ── */
         .error {
             color: #c62828;
@@ -303,6 +372,18 @@
     </div>
 
     <div class="main">
+        <!-- Date Filter -->
+        <div class="filter-bar">
+            <span class="control-label">From</span>
+            <input class="filter-date" type="datetime-local" id="filter-from">
+            <span class="filter-separator">—</span>
+            <span class="control-label">To</span>
+            <input class="filter-date" type="datetime-local" id="filter-to">
+            <button class="btn btn-primary" id="filter-apply">Apply</button>
+            <button class="btn btn-secondary" id="filter-reset">Reset</button>
+            <span class="filter-info" id="filter-info"></span>
+        </div>
+
         <div class="grid-top">
             <!-- Metrics -->
             <div class="card">
@@ -357,7 +438,10 @@
         const API = "https://function-bun-production-bdfe7.up.railway.app";
         let chart = null, candleSeries = null;
 
-        // Update topbar clock
+        // Raw data cache (fetched once, filtered client-side)
+        let allRows = [];
+
+        // ── Helpers ──
         function updateClock() {
             const el = document.getElementById('topbar-time');
             if (el) el.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -365,148 +449,241 @@
         updateClock();
         setInterval(updateClock, 60000);
 
-        async function loadMetrics() {
-            document.getElementById('metrics-content').innerHTML = '<div class="loading">Loading...</div>';
-            try {
-                const res = await fetch(`${API}/api/metrics`);
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
+        function getDateFilter() {
+            const from = document.getElementById('filter-from').value;
+            const to = document.getElementById('filter-to').value;
+            return {
+                from: from ? new Date(from) : null,
+                to: to ? new Date(to) : null,
+            };
+        }
 
-                const changeColor = data.change_percent >= 0 ? '#2e7d32' : '#c62828';
+        function filterRows(rows) {
+            const { from, to } = getDateFilter();
+            if (!from && !to) return rows;
+            return rows.filter(r => {
+                const t = new Date(r.timestamp);
+                if (from && t < from) return false;
+                if (to && t > to) return false;
+                return true;
+            });
+        }
 
-                document.getElementById('metrics-content').innerHTML = `
-                    <div class="metrics-grid">
-                        <div class="metric-card">
-                            <div class="metric-label">Latest Price</div>
-                            <div class="metric-value accent">$${data.latest}</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">Min</div>
-                            <div class="metric-value">$${data.min}</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">Max</div>
-                            <div class="metric-value">$${data.max}</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">Mean</div>
-                            <div class="metric-value">$${data.mean}</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">Std Dev</div>
-                            <div class="metric-value">${data.stddev}</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">Change</div>
-                            <div class="metric-value" style="color:${changeColor}">${data.change_percent >= 0 ? '+' : ''}${data.change_percent}%</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">Data Points</div>
-                            <div class="metric-value">${data.count}</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">Median</div>
-                            <div class="metric-value">$${data.median}</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">Period</div>
-                            <div class="metric-value small">${new Date(data.first_timestamp).toLocaleDateString()} &ndash; ${new Date(data.last_timestamp).toLocaleDateString()}</div>
-                        </div>
-                    </div>
-                `;
-            } catch (e) {
-                document.getElementById('metrics-content').innerHTML = `<div class="error">Error: ${e.message}</div>`;
+        function updateFilterInfo(count, total) {
+            const { from, to } = getDateFilter();
+            const el = document.getElementById('filter-info');
+            if (!from && !to) {
+                el.textContent = `Showing all ${total} records`;
+            } else {
+                el.textContent = `${count} of ${total} records in range`;
             }
         }
 
-        async function loadChart() {
+        // ── Fetch all raw prices once ──
+        async function fetchAllData() {
+            const res = await fetch(`${API}/api/prices?limit=100000`);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            allRows = data.data;
+
+            // Set date picker bounds from data
+            if (allRows.length > 0) {
+                const first = allRows[0].timestamp;
+                const last = allRows[allRows.length - 1].timestamp;
+                document.getElementById('filter-from').value = first.slice(0, 16);
+                document.getElementById('filter-to').value = last.slice(0, 16);
+            }
+        }
+
+        // ── Render metrics from filtered rows ──
+        function renderMetrics(rows) {
+            const el = document.getElementById('metrics-content');
+            if (rows.length === 0) {
+                el.innerHTML = '<div class="loading">No data in selected range</div>';
+                return;
+            }
+            const prices = rows.map(r => Number.parseFloat(r.price));
+            const mean = prices.reduce((a, b) => a + b, 0) / prices.length;
+            const sorted = [...prices].sort((a, b) => a - b);
+            const median = sorted[Math.floor(sorted.length / 2)];
+            const variance = prices.reduce((sum, p) => sum + (p - mean) ** 2, 0) / prices.length;
+            const stddev = Math.sqrt(variance);
+            const latest = prices[prices.length - 1];
+            const oldest = prices[0];
+            const changePct = ((latest - oldest) / oldest) * 100;
+            const changeColor = changePct >= 0 ? '#2e7d32' : '#c62828';
+
+            el.innerHTML = `
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-label">Latest Price</div>
+                        <div class="metric-value accent">$${latest.toFixed(6)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Min</div>
+                        <div class="metric-value">$${sorted[0].toFixed(6)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Max</div>
+                        <div class="metric-value">$${sorted[sorted.length - 1].toFixed(6)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Mean</div>
+                        <div class="metric-value">$${mean.toFixed(6)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Std Dev</div>
+                        <div class="metric-value">${stddev.toFixed(6)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Change</div>
+                        <div class="metric-value" style="color:${changeColor}">${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Data Points</div>
+                        <div class="metric-value">${prices.length}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Median</div>
+                        <div class="metric-value">$${median.toFixed(6)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Period</div>
+                        <div class="metric-value small">${new Date(rows[0].timestamp).toLocaleDateString()} &ndash; ${new Date(rows[rows.length - 1].timestamp).toLocaleDateString()}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ── Render chart from filtered rows ──
+        function renderChart(rows) {
             const interval = document.getElementById('chart-interval').value;
+            const statusEl = document.getElementById('chart-status');
+
+            if (rows.length === 0) {
+                statusEl.textContent = 'No data in range';
+                if (candleSeries) candleSeries.setData([]);
+                return;
+            }
+
+            const intervalMs = { '1h': 3600000, '4h': 14400000, '1d': 86400000 };
+            const ms = intervalMs[interval] ?? 3600000;
+
+            // Build candles
+            const candles = {};
+            for (const row of rows) {
+                const time = new Date(row.timestamp).getTime();
+                const bucket = Math.floor(time / ms) * ms;
+                const key = new Date(bucket).toISOString();
+                if (!candles[key]) candles[key] = [];
+                candles[key].push(Number.parseFloat(row.price));
+            }
+            const ohlc = Object.entries(candles)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([time, prices]) => ({
+                    time: Math.floor(new Date(time).getTime() / 1000),
+                    open: prices[0],
+                    high: Math.max(...prices),
+                    low: Math.min(...prices),
+                    close: prices[prices.length - 1],
+                }));
+
+            if (!chart) {
+                document.getElementById('chart-container').innerHTML = '';
+                chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
+                    layout: { background: { color: '#ffffff' }, textColor: '#1a1a2e', fontFamily: 'Inter, sans-serif' },
+                    grid: { vertLines: { color: '#f0f0f0' }, horzLines: { color: '#f0f0f0' } },
+                    width: document.getElementById('chart-container').offsetWidth,
+                    height: 340,
+                    timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#e0e0e0' },
+                    rightPriceScale: { borderColor: '#e0e0e0' },
+                    crosshair: {
+                        vertLine: { color: '#c8e6c9', width: 1, style: 2 },
+                        horzLine: { color: '#c8e6c9', width: 1, style: 2 },
+                    },
+                });
+                candleSeries = chart.addCandlestickSeries({
+                    upColor: '#43a047', downColor: '#ef5350',
+                    borderUpColor: '#388e3c', borderDownColor: '#d32f2f',
+                    wickUpColor: '#388e3c', wickDownColor: '#d32f2f',
+                });
+                window.addEventListener('resize', () => {
+                    chart.applyOptions({ width: document.getElementById('chart-container').offsetWidth });
+                });
+            }
+
+            candleSeries.setData(ohlc);
+            chart.timeScale().fitContent();
+            statusEl.textContent = `${ohlc.length} candles \u00b7 ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+        }
+
+        // ── Render prices table from filtered rows ──
+        function renderPrices(rows) {
+            const limit = Number.parseInt(document.getElementById('price-limit').value, 10) || 20;
+            const el = document.getElementById('prices-content');
+            const sliced = rows.slice(-limit);
+
+            if (sliced.length === 0) {
+                el.innerHTML = '<div class="loading">No data in selected range</div>';
+                return;
+            }
+
+            const tableRows = sliced.map(r => `
+                <tr>
+                    <td>${new Date(r.timestamp).toLocaleString()}</td>
+                    <td><span class="coin-cell"><span class="coin-dot"></span>${r.coin}</span></td>
+                    <td class="price-cell">$${Number.parseFloat(r.price).toFixed(6)}</td>
+                </tr>
+            `).join('');
+
+            el.innerHTML = `
+                <table class="prices-table">
+                    <thead><tr><th>Timestamp</th><th>Coin</th><th>Price</th></tr></thead>
+                    <tbody>${tableRows}</tbody>
+                </table>
+            `;
+        }
+
+        // ── Apply filter and re-render everything ──
+        function applyAndRender() {
+            const filtered = filterRows(allRows);
+            updateFilterInfo(filtered.length, allRows.length);
+            renderMetrics(filtered);
+            renderChart(filtered);
+            renderPrices(filtered);
+        }
+
+        // ── Init ──
+        document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('metrics-content').innerHTML = '<div class="loading">Loading...</div>';
+            document.getElementById('prices-content').innerHTML = '<div class="loading">Loading...</div>';
             document.getElementById('chart-status').textContent = 'Loading...';
 
             try {
-                if (!chart) {
-                    document.getElementById('chart-container').innerHTML = '';
-                    chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
-                        layout: { background: { color: '#ffffff' }, textColor: '#1a1a2e', fontFamily: 'Inter, sans-serif' },
-                        grid: { vertLines: { color: '#f0f0f0' }, horzLines: { color: '#f0f0f0' } },
-                        width: document.getElementById('chart-container').offsetWidth,
-                        height: 340,
-                        timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#e0e0e0' },
-                        rightPriceScale: { borderColor: '#e0e0e0' },
-                        crosshair: {
-                            vertLine: { color: '#c8e6c9', width: 1, style: 2 },
-                            horzLine: { color: '#c8e6c9', width: 1, style: 2 },
-                        },
-                    });
-                    candleSeries = chart.addCandlestickSeries({
-                        upColor: '#43a047', downColor: '#ef5350',
-                        borderUpColor: '#388e3c', borderDownColor: '#d32f2f',
-                        wickUpColor: '#388e3c', wickDownColor: '#d32f2f',
-                    });
-                    window.addEventListener('resize', () => {
-                        chart.applyOptions({ width: document.getElementById('chart-container').offsetWidth });
-                    });
-                }
-
-                const res = await fetch(`${API}/api/candlestick?interval=${interval}`);
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
-
-                const formatted = data.data.map(c => ({
-                    time: Math.floor(new Date(c.time).getTime() / 1000),
-                    open: c.open, high: c.high, low: c.low, close: c.close,
-                }));
-
-                candleSeries.setData(formatted);
-                chart.timeScale().fitContent();
-                document.getElementById('chart-status').textContent =
-                    `${data.data.length} candles \u00b7 ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                await fetchAllData();
+                applyAndRender();
             } catch (e) {
+                document.getElementById('metrics-content').innerHTML = `<div class="error">Error: ${e.message}</div>`;
+                document.getElementById('prices-content').innerHTML = `<div class="error">Error: ${e.message}</div>`;
                 document.getElementById('chart-status').innerHTML = `<span style="color:#c62828">${e.message}</span>`;
             }
-        }
-
-        async function loadPrices() {
-            const limit = document.getElementById('price-limit').value;
-            document.getElementById('prices-content').innerHTML = '<div class="loading">Loading...</div>';
-            try {
-                const res = await fetch(`${API}/api/prices?limit=${limit}`);
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
-
-                if (data.data.length === 0) {
-                    document.getElementById('prices-content').innerHTML = '<div class="loading">No data available</div>';
-                } else {
-                    const rows = data.data.map(r => `
-                        <tr>
-                            <td>${new Date(r.timestamp).toLocaleString()}</td>
-                            <td><span class="coin-cell"><span class="coin-dot"></span>${r.coin}</span></td>
-                            <td class="price-cell">$${Number.parseFloat(r.price).toFixed(6)}</td>
-                        </tr>
-                    `).join('');
-
-                    document.getElementById('prices-content').innerHTML = `
-                        <table class="prices-table">
-                            <thead><tr><th>Timestamp</th><th>Coin</th><th>Price</th></tr></thead>
-                            <tbody>${rows}</tbody>
-                        </table>
-                    `;
-                }
-            } catch (e) {
-                document.getElementById('prices-content').innerHTML = `<div class="error">Error: ${e.message}</div>`;
-            }
-        }
-
-        // Auto-load all data on page open
-        document.addEventListener('DOMContentLoaded', () => {
-            loadMetrics();
-            loadChart();
-            loadPrices();
         });
 
-        // Reload on-demand when controls change
-        document.getElementById('chart-interval').addEventListener('change', loadChart);
-        document.getElementById('price-limit').addEventListener('change', loadPrices);
+        // ── Event listeners ──
+        document.getElementById('filter-apply').addEventListener('click', applyAndRender);
+        document.getElementById('filter-reset').addEventListener('click', () => {
+            document.getElementById('filter-from').value = '';
+            document.getElementById('filter-to').value = '';
+            applyAndRender();
+        });
+        document.getElementById('chart-interval').addEventListener('change', () => {
+            const filtered = filterRows(allRows);
+            renderChart(filtered);
+        });
+        document.getElementById('price-limit').addEventListener('change', () => {
+            const filtered = filterRows(allRows);
+            renderPrices(filtered);
+        });
     </script>
 </body>
 </html>
