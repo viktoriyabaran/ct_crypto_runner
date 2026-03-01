@@ -351,6 +351,44 @@
             font-size: 13px;
         }
 
+        /* ── Loading overlay ── */
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(247, 248, 250, 0.75);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        .overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .overlay-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid #e0e0e0;
+            border-top-color: #43a047;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .overlay-text {
+            font-size: 13px;
+            color: #6b6b7a;
+            font-weight: 500;
+        }
+
         /* ── Responsive ── */
         @media (max-width: 768px) {
             .grid-top { grid-template-columns: 1fr; }
@@ -361,6 +399,13 @@
     </style>
 </head>
 <body>
+    <div class="overlay" id="overlay">
+        <div class="overlay-content">
+            <div class="spinner"></div>
+            <span class="overlay-text">Loading data...</span>
+        </div>
+    </div>
+
     <div class="topbar">
         <div class="topbar-brand">
             <div class="topbar-title">Stellar Dashboard</div>
@@ -440,6 +485,16 @@
 
         // Raw data cache (fetched once, filtered client-side)
         let allRows = [];
+
+        // ── Overlay ──
+        const overlay = document.getElementById('overlay');
+        function showOverlay(text = 'Loading data...') {
+            overlay.querySelector('.overlay-text').textContent = text;
+            overlay.classList.add('visible');
+        }
+        function hideOverlay() {
+            overlay.classList.remove('visible');
+        }
 
         // ── Helpers ──
         function updateClock() {
@@ -646,23 +701,26 @@
 
         // ── Apply filter and re-render everything ──
         function applyAndRender() {
-            const filtered = filterRows(allRows);
-            updateFilterInfo(filtered.length, allRows.length);
-            renderMetrics(filtered);
-            renderChart(filtered);
-            renderPrices(filtered);
+            showOverlay('Applying filters...');
+            // Defer rendering to next frame so the overlay paints first
+            requestAnimationFrame(() => {
+                const filtered = filterRows(allRows);
+                updateFilterInfo(filtered.length, allRows.length);
+                renderMetrics(filtered);
+                renderChart(filtered);
+                renderPrices(filtered);
+                hideOverlay();
+            });
         }
 
         // ── Init ──
         document.addEventListener('DOMContentLoaded', async () => {
-            document.getElementById('metrics-content').innerHTML = '<div class="loading">Loading...</div>';
-            document.getElementById('prices-content').innerHTML = '<div class="loading">Loading...</div>';
-            document.getElementById('chart-status').textContent = 'Loading...';
-
+            showOverlay('Fetching data...');
             try {
                 await fetchAllData();
                 applyAndRender();
             } catch (e) {
+                hideOverlay();
                 document.getElementById('metrics-content').innerHTML = `<div class="error">Error: ${e.message}</div>`;
                 document.getElementById('prices-content').innerHTML = `<div class="error">Error: ${e.message}</div>`;
                 document.getElementById('chart-status').innerHTML = `<span style="color:#c62828">${e.message}</span>`;
