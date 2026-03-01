@@ -35,10 +35,16 @@ function filterByTimeRange(
   from?: string,
   to?: string
 ) {
+  // Default to last 24 hours when no range is specified
+  const fromMs = from
+    ? new Date(from).getTime()
+    : Date.now() - 24 * 60 * 60 * 1000;
+  const toMs = to ? new Date(to).getTime() : Date.now();
+
   return rows.filter((r) => {
     const t = new Date(r.timestamp).getTime();
-    if (from && t < new Date(from).getTime()) return false;
-    if (to && t > new Date(to).getTime()) return false;
+    if (t < fromMs) return false;
+    if (t > toMs) return false;
     return true;
   });
 }

@@ -19,8 +19,8 @@ Returns raw price history rows (most recent last).
 | Param   | Type   | Default | Description                          |
 |---------|--------|---------|--------------------------------------|
 | `limit` | number | `100`   | Number of most-recent rows           |
-| `from`  | string | —       | ISO 8601 start of time range filter  |
-| `to`    | string | —       | ISO 8601 end of time range filter    |
+| `from`  | string | —       | ISO 8601 start of time range (default: 24 h ago) |
+| `to`    | string | —       | ISO 8601 end of time range (default: now)         |
 
 **Response**
 
@@ -41,8 +41,8 @@ Returns OHLC candlestick data grouped by time interval.
 | Param      | Type   | Default | Description                          |
 |------------|--------|---------|--------------------------------------|
 | `interval` | string | `1h`   | Bucket size: `1h`, `4h`, or `1d`     |
-| `from`     | string | —      | ISO 8601 start of time range filter  |
-| `to`       | string | —      | ISO 8601 end of time range filter    |
+| `from`     | string | —      | ISO 8601 start of time range (default: 24 h ago) |
+| `to`       | string | —      | ISO 8601 end of time range (default: now)         |
 
 **Response**
 
@@ -65,8 +65,8 @@ Returns statistical metrics computed over price data in the given time range.
 
 | Param  | Type   | Default | Description                          |
 |--------|--------|---------|--------------------------------------|
-| `from` | string | —       | ISO 8601 start of time range filter  |
-| `to`   | string | —       | ISO 8601 end of time range filter    |
+| `from` | string | —       | ISO 8601 start of time range (default: 24 h ago) |
+| `to`   | string | —       | ISO 8601 end of time range (default: now)         |
 
 **Response**
 
