@@ -8,93 +8,211 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, sans-serif; background: #1a1a2e; color: #eee; padding: 20px; }
-        h1 { text-align: center; margin-bottom: 20px; color: #e94560; }
+        h1 { text-align: center; margin-bottom: 24px; color: #e94560; }
+
+        .section {
+            background: #16213e;
+            border: 1px solid #0f3460;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .section-title { font-size: 18px; font-weight: bold; color: #e94560; }
+
+        .controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        label { font-size: 13px; color: #aaa; }
+        input[type="number"] {
+            width: 70px;
+            padding: 6px 8px;
+            background: #0f3460;
+            border: 1px solid #e94560;
+            border-radius: 6px;
+            color: #eee;
+            font-size: 13px;
+        }
+        select {
+            padding: 6px 8px;
+            background: #0f3460;
+            border: 1px solid #e94560;
+            border-radius: 6px;
+            color: #eee;
+            font-size: 13px;
+        }
+        button {
+            background: #0f3460;
+            color: #eee;
+            border: 1px solid #e94560;
+            padding: 8px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+        button:hover { background: #e94560; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
         .metrics-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 12px;
-            margin-bottom: 24px;
         }
         .metric-card {
-            background: #16213e;
-            border-radius: 10px;
-            padding: 16px;
+            background: #1a1a2e;
+            border-radius: 8px;
+            padding: 14px;
             text-align: center;
             border: 1px solid #0f3460;
         }
-        .metric-card .label { font-size: 12px; color: #888; text-transform: uppercase; }
-        .metric-card .value { font-size: 24px; font-weight: bold; margin-top: 6px; color: #e94560; }
-        #chart-container { width: 100%; height: 400px; margin-bottom: 24px; }
-        .controls { text-align: center; margin-bottom: 16px; }
-        .controls button {
-            background: #0f3460; color: #eee; border: 1px solid #e94560;
-            padding: 8px 20px; margin: 0 4px; border-radius: 6px; cursor: pointer;
+        .metric-card .label { font-size: 11px; color: #888; text-transform: uppercase; }
+        .metric-card .value { font-size: 22px; font-weight: bold; margin-top: 4px; color: #e94560; }
+
+        #chart-container { width: 100%; height: 400px; }
+
+        .prices-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
         }
-        .controls button.active { background: #e94560; }
-        .status { text-align: center; color: #888; font-size: 13px; }
+        .prices-table th, .prices-table td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #0f3460;
+        }
+        .prices-table th { color: #888; text-transform: uppercase; font-size: 11px; }
+        .prices-table td { color: #eee; }
+
+        .placeholder {
+            text-align: center;
+            color: #555;
+            padding: 40px;
+            font-size: 14px;
+        }
         .error { color: #ff6b6b; text-align: center; padding: 20px; }
+        .loading { color: #888; text-align: center; padding: 20px; }
     </style>
 </head>
 <body>
     <h1>Stellar (XLM) Dashboard</h1>
 
-    <div id="metrics" class="metrics-grid"></div>
-
-    <div class="controls">
-        <button onclick="loadChart('1h')" id="btn-1h" class="active">1H</button>
-        <button onclick="loadChart('4h')" id="btn-4h">4H</button>
-        <button onclick="loadChart('1d')" id="btn-1d">1D</button>
+    <!-- Metrics Section -->
+    <div class="section">
+        <div class="section-header">
+            <span class="section-title">Metrics</span>
+            <div class="controls">
+                <button onclick="loadMetrics()" id="btn-metrics">Load Metrics</button>
+            </div>
+        </div>
+        <div id="metrics-content">
+            <div class="placeholder">Click "Load Metrics" to fetch statistics</div>
+        </div>
     </div>
 
-    <div id="chart-container"></div>
-    <div id="status" class="status">Loading...</div>
+    <!-- Candlestick Chart Section -->
+    <div class="section">
+        <div class="section-header">
+            <span class="section-title">Candlestick Chart</span>
+            <div class="controls">
+                <label>Interval:</label>
+                <select id="chart-interval">
+                    <option value="1h">1 Hour</option>
+                    <option value="4h">4 Hours</option>
+                    <option value="1d">1 Day</option>
+                </select>
+                <button onclick="loadChart()" id="btn-chart">Load Chart</button>
+            </div>
+        </div>
+        <div id="chart-container">
+            <div class="placeholder">Click "Load Chart" to fetch candlestick data</div>
+        </div>
+        <div id="chart-status"></div>
+    </div>
+
+    <!-- Price History Section -->
+    <div class="section">
+        <div class="section-header">
+            <span class="section-title">Price History</span>
+            <div class="controls">
+                <label>Limit:</label>
+                <input type="number" id="price-limit" value="20" min="1" max="1000">
+                <button onclick="loadPrices()" id="btn-prices">Load Prices</button>
+            </div>
+        </div>
+        <div id="prices-content">
+            <div class="placeholder">Click "Load Prices" to fetch raw price data</div>
+        </div>
+    </div>
 
     <script>
         const API = "https://function-bun-production-bdfe7.up.railway.app";
-        let chart, candleSeries;
+        let chart = null, candleSeries = null;
 
-        function initChart() {
-            chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
-                layout: { background: { color: '#16213e' }, textColor: '#eee' },
-                grid: { vertLines: { color: '#0f3460' }, horzLines: { color: '#0f3460' } },
-                width: document.getElementById('chart-container').offsetWidth,
-                height: 400,
-                timeScale: { timeVisible: true, secondsVisible: false },
-            });
-            candleSeries = chart.addCandlestickSeries({
-                upColor: '#4caf50', downColor: '#e94560',
-                borderUpColor: '#4caf50', borderDownColor: '#e94560',
-                wickUpColor: '#4caf50', wickDownColor: '#e94560',
-            });
-            window.addEventListener('resize', () => {
-                chart.applyOptions({ width: document.getElementById('chart-container').offsetWidth });
-            });
+        function setLoading(elementId, btnId) {
+            document.getElementById(elementId).innerHTML = '<div class="loading">Loading...</div>';
+            document.getElementById(btnId).disabled = true;
+        }
+        function clearLoading(btnId) {
+            document.getElementById(btnId).disabled = false;
         }
 
         async function loadMetrics() {
+            setLoading('metrics-content', 'btn-metrics');
             try {
                 const res = await fetch(`${API}/api/metrics`);
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
-                document.getElementById('metrics').innerHTML = `
-                    <div class="metric-card"><div class="label">Latest Price</div><div class="value">$${data.latest}</div></div>
-                    <div class="metric-card"><div class="label">Min</div><div class="value">$${data.min}</div></div>
-                    <div class="metric-card"><div class="label">Max</div><div class="value">$${data.max}</div></div>
-                    <div class="metric-card"><div class="label">Mean</div><div class="value">$${data.mean}</div></div>
-                    <div class="metric-card"><div class="label">Std Dev</div><div class="value">${data.stddev}</div></div>
-                    <div class="metric-card"><div class="label">Change</div><div class="value" style="color:${data.change_percent >= 0 ? '#4caf50' : '#e94560'}">${data.change_percent}%</div></div>
-                    <div class="metric-card"><div class="label">Data Points</div><div class="value">${data.count}</div></div>
-                    <div class="metric-card"><div class="label">Median</div><div class="value">$${data.median}</div></div>
+
+                document.getElementById('metrics-content').innerHTML = `
+                    <div class="metrics-grid">
+                        <div class="metric-card"><div class="label">Latest Price</div><div class="value">$${data.latest}</div></div>
+                        <div class="metric-card"><div class="label">Min</div><div class="value">$${data.min}</div></div>
+                        <div class="metric-card"><div class="label">Max</div><div class="value">$${data.max}</div></div>
+                        <div class="metric-card"><div class="label">Mean</div><div class="value">$${data.mean}</div></div>
+                        <div class="metric-card"><div class="label">Std Dev</div><div class="value">${data.stddev}</div></div>
+                        <div class="metric-card"><div class="label">Change</div><div class="value" style="color:${data.change_percent >= 0 ? '#4caf50' : '#e94560'}">${data.change_percent}%</div></div>
+                        <div class="metric-card"><div class="label">Data Points</div><div class="value">${data.count}</div></div>
+                        <div class="metric-card"><div class="label">Median</div><div class="value">$${data.median}</div></div>
+                        <div class="metric-card"><div class="label">Period</div><div class="value" style="font-size:12px">${new Date(data.first_timestamp).toLocaleDateString()} - ${new Date(data.last_timestamp).toLocaleDateString()}</div></div>
+                    </div>
                 `;
             } catch (e) {
-                document.getElementById('metrics').innerHTML = `<div class="error">Metrics error: ${e.message}</div>`;
+                document.getElementById('metrics-content').innerHTML = `<div class="error">Error: ${e.message}</div>`;
             }
+            clearLoading('btn-metrics');
         }
 
-        async function loadChart(interval = '1h') {
+        async function loadChart() {
+            const interval = document.getElementById('chart-interval').value;
+            document.getElementById('btn-chart').disabled = true;
+            document.getElementById('chart-status').innerHTML = '<div class="loading">Loading...</div>';
+
             try {
-                document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
-                document.getElementById(`btn-${interval}`).classList.add('active');
+                // Initialize chart if needed
+                if (!chart) {
+                    document.getElementById('chart-container').innerHTML = '';
+                    chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
+                        layout: { background: { color: '#16213e' }, textColor: '#eee' },
+                        grid: { vertLines: { color: '#0f3460' }, horzLines: { color: '#0f3460' } },
+                        width: document.getElementById('chart-container').offsetWidth,
+                        height: 400,
+                        timeScale: { timeVisible: true, secondsVisible: false },
+                    });
+                    candleSeries = chart.addCandlestickSeries({
+                        upColor: '#4caf50', downColor: '#e94560',
+                        borderUpColor: '#4caf50', borderDownColor: '#e94560',
+                        wickUpColor: '#4caf50', wickDownColor: '#e94560',
+                    });
+                    window.addEventListener('resize', () => {
+                        chart.applyOptions({ width: document.getElementById('chart-container').offsetWidth });
+                    });
+                }
 
                 const res = await fetch(`${API}/api/candlestick?interval=${interval}`);
                 const data = await res.json();
@@ -107,19 +225,45 @@
 
                 candleSeries.setData(formatted);
                 chart.timeScale().fitContent();
-                document.getElementById('status').textContent =
-                    `Last updated: ${new Date().toLocaleTimeString()} | ${data.data.length} candles (${interval})`;
+                document.getElementById('chart-status').innerHTML =
+                    `<div class="loading">Loaded ${data.data.length} candles (${interval}) at ${new Date().toLocaleTimeString()}</div>`;
             } catch (e) {
-                document.getElementById('status').innerHTML = `<span class="error">Chart error: ${e.message}</span>`;
+                document.getElementById('chart-status').innerHTML = `<div class="error">Chart error: ${e.message}</div>`;
             }
+            document.getElementById('btn-chart').disabled = false;
         }
 
-        initChart();
-        loadMetrics();
-        loadChart('1h');
+        async function loadPrices() {
+            const limit = document.getElementById('price-limit').value;
+            setLoading('prices-content', 'btn-prices');
+            try {
+                const res = await fetch(`${API}/api/prices?limit=${limit}`);
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
 
-        // Auto-refresh every 60 seconds
-        setInterval(() => { loadMetrics(); loadChart(document.querySelector('.controls button.active').id.replace('btn-', '')); }, 60000);
+                if (data.data.length === 0) {
+                    document.getElementById('prices-content').innerHTML = '<div class="placeholder">No price data available</div>';
+                } else {
+                    let rows = data.data.map(r => `
+                        <tr>
+                            <td>${new Date(r.timestamp).toLocaleString()}</td>
+                            <td>${r.coin}</td>
+                            <td>$${parseFloat(r.price).toFixed(6)}</td>
+                        </tr>
+                    `).join('');
+
+                    document.getElementById('prices-content').innerHTML = `
+                        <table class="prices-table">
+                            <thead><tr><th>Timestamp</th><th>Coin</th><th>Price</th></tr></thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    `;
+                }
+            } catch (e) {
+                document.getElementById('prices-content').innerHTML = `<div class="error">Error: ${e.message}</div>`;
+            }
+            clearLoading('btn-prices');
+        }
     </script>
 </body>
 </html>
