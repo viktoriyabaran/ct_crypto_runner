@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VB Crypto Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; background: #1a1a2e; color: #eee; padding: 20px; }
+        h1 { text-align: center; margin-bottom: 20px; color: #e94560; }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .metric-card {
+            background: #16213e;
+            border-radius: 10px;
+            padding: 16px;
+            text-align: center;
+            border: 1px solid #0f3460;
+        }
+        .metric-card .label { font-size: 12px; color: #888; text-transform: uppercase; }
+        .metric-card .value { font-size: 24px; font-weight: bold; margin-top: 6px; color: #e94560; }
+        #chart-container { width: 100%; height: 400px; margin-bottom: 24px; }
+        .controls { text-align: center; margin-bottom: 16px; }
+        .controls button {
+            background: #0f3460; color: #eee; border: 1px solid #e94560;
+            padding: 8px 20px; margin: 0 4px; border-radius: 6px; cursor: pointer;
+        }
+        .controls button.active { background: #e94560; }
+        .status { text-align: center; color: #888; font-size: 13px; }
+        .error { color: #ff6b6b; text-align: center; padding: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Stellar (XLM) Dashboard</h1>
+
+    <div id="metrics" class="metrics-grid"></div>
+
+    <div class="controls">
+        <button onclick="loadChart('1h')" id="btn-1h" class="active">1H</button>
+        <button onclick="loadChart('4h')" id="btn-4h">4H</button>
+        <button onclick="loadChart('1d')" id="btn-1d">1D</button>
+    </div>
+
+    <div id="chart-container"></div>
+    <div id="status" class="status">Loading...</div>
+
+    <script>
+        const API = "https://function-bun-production-bdfe7.up.railway.app";
+        let chart, candleSeries;
+
+        function initChart() {
+            chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
+                layout: { background: { color: '#16213e' }, textColor: '#eee' },
+                grid: { vertLines: { color: '#0f3460' }, horzLines: { color: '#0f3460' } },
+                width: document.getElementById('chart-container').offsetWidth,
+                height: 400,
+                timeScale: { timeVisible: true, secondsVisible: false },
+            });
+            candleSeries = chart.addCandlestickSeries({
+                upColor: '#4caf50', downColor: '#e94560',
+                borderUpColor: '#4caf50', borderDownColor: '#e94560',
+                wickUpColor: '#4caf50', wickDownColor: '#e94560',
+            });
+            window.addEventListener('resize', () => {
+                chart.applyOptions({ width: document.getElementById('chart-container').offsetWidth });
+            });
+        }
+
+        async function loadMetrics() {
+            try {
+                const res = await fetch(`${API}/api/metrics`);
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+                document.getElementById('metrics').innerHTML = `
+                    <div class="metric-card"><div class="label">Latest Price</div><div class="value">$${data.latest}</div></div>
+                    <div class="metric-card"><div class="label">Min</div><div class="value">$${data.min}</div></div>
+                    <div class="metric-card"><div class="label">Max</div><div class="value">$${data.max}</div></div>
+                    <div class="metric-card"><div class="label">Mean</div><div class="value">$${data.mean}</div></div>
+                    <div class="metric-card"><div class="label">Std Dev</div><div class="value">${data.stddev}</div></div>
+                    <div class="metric-card"><div class="label">Change</div><div class="value" style="color:${data.change_percent >= 0 ? '#4caf50' : '#e94560'}">${data.change_percent}%</div></div>
+                    <div class="metric-card"><div class="label">Data Points</div><div class="value">${data.count}</div></div>
+                    <div class="metric-card"><div class="label">Median</div><div class="value">$${data.median}</div></div>
+                `;
+            } catch (e) {
+                document.getElementById('metrics').innerHTML = `<div class="error">Metrics error: ${e.message}</div>`;
+            }
+        }
+
+        async function loadChart(interval = '1h') {
+            try {
+                document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+                document.getElementById(`btn-${interval}`).classList.add('active');
+
+                const res = await fetch(`${API}/api/candlestick?interval=${interval}`);
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+
+                const formatted = data.data.map(c => ({
+                    time: Math.floor(new Date(c.time).getTime() / 1000),
+                    open: c.open, high: c.high, low: c.low, close: c.close,
+                }));
+
+                candleSeries.setData(formatted);
+                chart.timeScale().fitContent();
+                document.getElementById('status').textContent =
+                    `Last updated: ${new Date().toLocaleTimeString()} | ${data.data.length} candles (${interval})`;
+            } catch (e) {
+                document.getElementById('status').innerHTML = `<span class="error">Chart error: ${e.message}</span>`;
+            }
+        }
+
+        initChart();
+        loadMetrics();
+        loadChart('1h');
+
+        // Auto-refresh every 60 seconds
+        setInterval(() => { loadMetrics(); loadChart(document.querySelector('.controls button.active').id.replace('btn-', '')); }, 60000);
+    </script>
+</body>
+</html>

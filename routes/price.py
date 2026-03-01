@@ -1,5 +1,5 @@
 from flask import Blueprint
-from services.price_service import get_current_price, get_price_history
+from services import get_current_price, get_price_history
 from config import COIN_ID, CURRENCY
 
 price_bp = Blueprint('price', __name__)

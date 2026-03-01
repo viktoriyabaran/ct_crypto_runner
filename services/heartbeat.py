@@ -1,7 +1,7 @@
 import time
 from datetime import datetime
 from config import COIN_ID, HEARTBEAT_INTERVAL
-from services.price_service import record_price
+from services import record_price
 
 def run_heartbeat():
     while True:
