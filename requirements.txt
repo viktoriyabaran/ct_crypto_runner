@@ -1,6 +1,7 @@
-flask
-requests
-pytest
-minio
-python-dotenv
-prometheus-flask-instrumentator
+flask==3.1.0
+requests==2.32.5
+pytest==9.0.2
+minio==7.2.20
+python-dotenv==1.2.1
+prometheus-flask-instrumentator==7.0.2
+markupsafe==2.1.5
