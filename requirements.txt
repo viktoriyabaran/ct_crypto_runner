@@ -3,3 +3,4 @@ requests
 pytest
 minio
 python-dotenv
+prometheus-flask-instrumentator

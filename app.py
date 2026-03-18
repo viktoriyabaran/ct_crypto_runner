@@ -1,6 +1,7 @@
 import threading
 
 from flask import Flask
+from prometheus_flask_instrumentator import Instrumentator
 
 from config import PORT
 from routes import dashboard_bp, health_bp, price_bp
@@ -10,6 +11,8 @@ app = Flask(__name__)
 app.register_blueprint(health_bp)
 app.register_blueprint(price_bp)
 app.register_blueprint(dashboard_bp)
+
+Instrumentator().instrument(app).expose(app)
 
 if __name__ == '__main__':
     thread = threading.Thread(target=run_heartbeat, daemon=True)
